@@ -1,0 +1,91 @@
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+-- WalkSpeed Changer GUI - Compatible with Delta, Fluxus, Arceus X, Codex, KRNL, Hydrogen
+
+-- Create GUI
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local Input = Instance.new("TextBox")
+local Button = Instance.new("TextButton")
+local Minimize = Instance.new("TextButton")
+
+-- Parent setup (handles mobile executor support)
+pcall(function()
+    ScreenGui.Parent = (game.CoreGui or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"))
+end)
+
+ScreenGui.Name = "WalkSpeedChanger"
+
+-- Frame (Main UI)
+Frame.Parent = ScreenGui
+Frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+Frame.Position = UDim2.new(0.05, 0, 0.2, 0)
+Frame.Size = UDim2.new(0, 200, 0, 120)
+Frame.Active = true
+Frame.Draggable = true
+
+-- Title
+Title.Parent = Frame
+Title.Text = "WalkSpeed Changer"
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 16
+
+-- Input box
+Input.Parent = Frame
+Input.PlaceholderText = "Enter speed"
+Input.Position = UDim2.new(0.1, 0, 0.4, 0)
+Input.Size = UDim2.new(0.8, 0, 0, 30)
+Input.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+Input.TextColor3 = Color3.fromRGB(255, 255, 255)
+Input.Font = Enum.Font.SourceSans
+Input.TextSize = 14
+
+-- Button
+Button.Parent = Frame
+Button.Text = "Set Speed"
+Button.Position = UDim2.new(0.1, 0, 0.7, 0)
+Button.Size = UDim2.new(0.8, 0, 0, 25)
+Button.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+Button.Font = Enum.Font.SourceSansBold
+Button.TextSize = 14
+
+-- Minimize button
+Minimize.Parent = Frame
+Minimize.Text = "-"
+Minimize.Position = UDim2.new(1, -25, 0, 5)
+Minimize.Size = UDim2.new(0, 20, 0, 20)
+Minimize.BackgroundColor3 = Color3.fromRGB(90, 90, 90)
+Minimize.TextColor3 = Color3.fromRGB(255, 255, 255)
+Minimize.Font = Enum.Font.SourceSansBold
+Minimize.TextSize = 16
+
+-- Function: Set speed
+Button.MouseButton1Click:Connect(function()
+    local speed = tonumber(Input.Text)
+    local plr = game.Players.LocalPlayer
+    if speed and plr and plr.Character and plr.Character:FindFirstChild("Humanoid") then
+        plr.Character.Humanoid.WalkSpeed = speed
+    end
+end)
+
+-- Minimize toggle
+local minimized = false
+Minimize.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    for _, v in pairs(Frame:GetChildren()) do
+        if v ~= Title and v ~= Minimize then
+            v.Visible = not minimized
+        end
+    end
+    if minimized then
+        Frame.Size = UDim2.new(0, 200, 0, 30)
+    else
+        Frame.Size = UDim2.new(0, 200, 0, 120)
+    end
+end)
