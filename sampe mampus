@@ -1,0 +1,194 @@
+
+-- =====================================================
+-- SERVICES
+-- =====================================================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UIS = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local player = Players.LocalPlayer
+
+-- =====================================================
+-- REMOTE
+-- =====================================================
+local Remote = ReplicatedStorage
+    :WaitForChild("\228\186\139\228\187\182")
+    :WaitForChild("\229\133\172\231\148\168")
+    :WaitForChild("\229\133\179\229\141\161")
+    :WaitForChild("\232\191\155\229\133\165\228\184\150\231\149\140\229\133\179\229\141\161")
+
+-- =====================================================
+-- UI SETUP
+-- =====================================================
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.ResetOnSpawn = false
+
+-- MAIN FRAME (DRAGGABLE)
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.fromScale(0.22, 0.22)
+frame.Position = UDim2.fromScale(0.72, 0.15)
+frame.BackgroundColor3 = Color3.fromRGB(18,18,18)
+frame.BorderSizePixel = 0
+frame.Active = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+
+-- HEADER (DRAG AREA)
+local header = Instance.new("Frame", frame)
+header.Size = UDim2.fromScale(1, 0.18)
+header.BackgroundColor3 = Color3.fromRGB(28,28,28)
+header.BorderSizePixel = 0
+Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
+
+local title = Instance.new("TextLabel", header)
+title.Size = UDim2.fromScale(0.75, 1)
+title.Position = UDim2.fromScale(0.05, 0)
+title.Text = "Loop Control"
+title.TextScaled = true
+title.BackgroundTransparency = 1
+title.TextColor3 = Color3.new(1,1,1)
+
+local minimizeBtn = Instance.new("TextButton", header)
+minimizeBtn.Size = UDim2.fromScale(0.15, 0.7)
+minimizeBtn.Position = UDim2.fromScale(0.82, 0.15)
+minimizeBtn.Text = "–"
+minimizeBtn.TextScaled = true
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(80,80,80)
+minimizeBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 6)
+
+-- CONTENT
+local content = Instance.new("Frame", frame)
+content.Size = UDim2.fromScale(1, 0.82)
+content.Position = UDim2.fromScale(0, 0.18)
+content.BackgroundTransparency = 1
+
+-- INPUT ANGKA
+local valueBox = Instance.new("TextBox", content)
+valueBox.Size = UDim2.fromScale(0.9, 0.22)
+valueBox.Position = UDim2.fromScale(0.05, 0.08)
+valueBox.PlaceholderText = "Input angka"
+valueBox.TextScaled = true
+valueBox.BackgroundColor3 = Color3.fromRGB(35,35,35)
+valueBox.TextColor3 = Color3.new(1,1,1)
+valueBox.ClearTextOnFocus = false
+Instance.new("UICorner", valueBox).CornerRadius = UDim.new(0, 8)
+
+-- INPUT INTERVAL
+local intervalBox = Instance.new("TextBox", content)
+intervalBox.Size = UDim2.fromScale(0.9, 0.22)
+intervalBox.Position = UDim2.fromScale(0.05, 0.36)
+intervalBox.PlaceholderText = "Interval (detik)"
+intervalBox.TextScaled = true
+intervalBox.BackgroundColor3 = Color3.fromRGB(35,35,35)
+intervalBox.TextColor3 = Color3.new(1,1,1)
+intervalBox.ClearTextOnFocus = false
+Instance.new("UICorner", intervalBox).CornerRadius = UDim.new(0, 8)
+
+-- BUTTONS
+local startBtn = Instance.new("TextButton", content)
+startBtn.Size = UDim2.fromScale(0.42, 0.22)
+startBtn.Position = UDim2.fromScale(0.05, 0.68)
+startBtn.Text = "START"
+startBtn.TextScaled = true
+startBtn.BackgroundColor3 = Color3.fromRGB(60,120,60)
+startBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", startBtn).CornerRadius = UDim.new(0, 8)
+
+local stopBtn = Instance.new("TextButton", content)
+stopBtn.Size = UDim2.fromScale(0.42, 0.22)
+stopBtn.Position = UDim2.fromScale(0.53, 0.68)
+stopBtn.Text = "STOP"
+stopBtn.TextScaled = true
+stopBtn.BackgroundColor3 = Color3.fromRGB(120,60,60)
+stopBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
+
+-- =====================================================
+-- LOOP LOGIC
+-- =====================================================
+local running = false
+
+local function startLoop()
+    local value = tonumber(valueBox.Text)
+    local interval = tonumber(intervalBox.Text)
+
+    if not value or not interval or interval <= 0 then
+        warn("Input tidak valid")
+        return
+    end
+
+    running = true
+    task.spawn(function()
+        while running do
+            Remote:FireServer(value)
+            task.wait(interval)
+        end
+    end)
+end
+
+startBtn.MouseButton1Click:Connect(function()
+    if not running then
+        startLoop()
+    end
+end)
+
+stopBtn.MouseButton1Click:Connect(function()
+    running = false
+end)
+
+-- =====================================================
+-- MINIMIZE LOGIC
+-- =====================================================
+local minimized = false
+minimizeBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    content.Visible = not minimized
+    frame.Size = minimized and UDim2.fromScale(0.22, 0.06)
+        or UDim2.fromScale(0.22, 0.22)
+    minimizeBtn.Text = minimized and "+" or "–"
+end)
+
+-- =====================================================
+-- DRAG LOGIC
+-- =====================================================
+local dragging, dragStart, startPos
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+header.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- =====================================================
+-- ANTI AFK
+-- =====================================================
+player.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+end)
+
+warn("Draggable + Minimize Loop UI + Anti-AFK Loaded")
