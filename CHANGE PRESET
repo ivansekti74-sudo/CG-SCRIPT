@@ -1,0 +1,343 @@
+-- ========== SCRIPT GABUNGAN: AUTO SWITCH EQUIPMENT + WALKSPEED (DEFAULT 80) ==========
+-- Versi tanpa Statue, dengan Tanker Set, dan shortcut keyboard "R" untuk set walkspeed
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ========== 1. KONFIGURASI SLOT EQUIPMENT ==========
+local TANKER_SLOT = 5   -- Slot untuk Tanker Set
+local DAMAGE_SLOT = 6   -- Slot untuk Damage Set
+
+-- ========== 2. KONFIGURASI WALKSPEED DEFAULT ==========
+local DEFAULT_WALKSPEED = 80
+
+-- ========== 3. AUTO SWITCH EQUIPMENT (Remote Events) ==========
+local expSet = false  -- true = Tanker terpasang, false = Damage terpasang
+local busy = false
+
+-- Cari folder RemoteEvent
+local RepEventFolder = ReplicatedStorage
+    :WaitForChild("\228\186\139\228\187\182")  -- "界面"
+    :WaitForChild("\229\133\172\231\148\168")  -- "设置"
+
+local switchRelicEvent = RepEventFolder
+    :WaitForChild("\233\129\151\231\137\169")  -- "圣物"
+    :WaitForChild("\229\136\135\230\141\162\232\163\133\229\164\135\231\187\132")
+
+local switchRuneEvent = RepEventFolder
+    :WaitForChild("\233\152\181\230\179\149")  -- "符文"
+    :WaitForChild("\229\136\135\230\141\162\232\163\133\229\164\135\231\187\132")
+
+local switchDecorEvent = RepEventFolder
+    :WaitForChild("\228\184\150\231\149\140\230\160\145") -- "装饰品"
+    :WaitForChild("\229\136\135\230\141\162\232\163\133\229\164\135\231\187\132")
+
+local SwitchSkillEvent = RepEventFolder
+    :WaitForChild("\230\138\128\232\131\189")  -- "技能"      
+    :WaitForChild("\229\136\135\230\141\162\232\163\133\229\164\135\231\187\132")
+
+-- ========== 4. MEMBUAT GUI UTAMA ==========
+if playerGui:FindFirstChild("AutoTool") then
+    playerGui.AutoTool:Destroy()
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "AutoTool"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Parent = gui
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Position = UDim2.new(0.5, -150, 0.3, 0)
+mainFrame.Size = UDim2.new(0, 300, 0, 230)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.ClipsDescendants = true
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+local shadow = Instance.new("UIShadow")
+shadow.Parent = mainFrame
+
+-- Title Bar
+local titleBar = Instance.new("Frame")
+titleBar.Parent = mainFrame
+titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+titleBar.BorderSizePixel = 0
+titleBar.Size = UDim2.new(1, 0, 0, 35)
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+
+local titleText = Instance.new("TextLabel")
+titleText.Parent = titleBar
+titleText.BackgroundTransparency = 1
+titleText.Size = UDim2.new(1, -40, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.Text = "Auto Tool"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 16
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.TextYAlignment = Enum.TextYAlignment.Center
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Parent = titleBar
+closeBtn.Size = UDim2.new(0, 30, 1, 0)
+closeBtn.Position = UDim2.new(1, -30, 0, 0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+closeBtn.BorderSizePixel = 0
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 4)
+closeCorner.Parent = closeBtn
+closeBtn.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
+-- ========== 5. BAGIAN EQUIPMENT SET ==========
+local equipLabel = Instance.new("TextLabel")
+equipLabel.Parent = mainFrame
+equipLabel.BackgroundTransparency = 1
+equipLabel.Position = UDim2.new(0, 10, 0, 45)
+equipLabel.Size = UDim2.new(1, -20, 0, 20)
+equipLabel.Text = "Equipment Set"
+equipLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+equipLabel.Font = Enum.Font.GothamSemibold
+equipLabel.TextSize = 14
+equipLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local tankerBtn = Instance.new("TextButton")
+tankerBtn.Parent = mainFrame
+tankerBtn.Size = UDim2.new(0, 120, 0, 35)
+tankerBtn.Position = UDim2.new(0, 15, 0, 70)
+tankerBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+tankerBtn.BorderSizePixel = 0
+tankerBtn.Text = "Tanker Set"
+tankerBtn.TextColor3 = Color3.new(1, 1, 1)
+tankerBtn.Font = Enum.Font.GothamBold
+tankerBtn.TextSize = 13
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 5)
+btnCorner.Parent = tankerBtn
+
+local dmgBtn = Instance.new("TextButton")
+dmgBtn.Parent = mainFrame
+dmgBtn.Size = UDim2.new(0, 120, 0, 35)
+dmgBtn.Position = UDim2.new(1, -135, 0, 70)
+dmgBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+dmgBtn.BorderSizePixel = 0
+dmgBtn.Text = "Damage Set"
+dmgBtn.TextColor3 = Color3.new(1, 1, 1)
+dmgBtn.Font = Enum.Font.GothamBold
+dmgBtn.TextSize = 13
+local btnCorner2 = Instance.new("UICorner")
+btnCorner2.CornerRadius = UDim.new(0, 5)
+btnCorner2.Parent = dmgBtn
+
+local equipStatus = Instance.new("TextLabel")
+equipStatus.Parent = mainFrame
+equipStatus.BackgroundTransparency = 1
+equipStatus.Position = UDim2.new(0, 15, 0, 110)
+equipStatus.Size = UDim2.new(1, -30, 0, 18)
+equipStatus.Text = "Status: Tanker Set (Slot " .. TANKER_SLOT .. ")"
+equipStatus.TextColor3 = Color3.fromRGB(150, 150, 150)
+equipStatus.Font = Enum.Font.Gotham
+equipStatus.TextSize = 11
+equipStatus.TextXAlignment = Enum.TextXAlignment.Left
+
+local slotInfo = Instance.new("TextLabel")
+slotInfo.Parent = mainFrame
+slotInfo.BackgroundTransparency = 1
+slotInfo.Position = UDim2.new(0, 15, 0, 125)
+slotInfo.Size = UDim2.new(1, -30, 0, 15)
+slotInfo.Text = "Tanker Slot: " .. TANKER_SLOT .. " | Damage Slot: " .. DAMAGE_SLOT
+slotInfo.TextColor3 = Color3.fromRGB(120, 120, 130)
+slotInfo.Font = Enum.Font.Gotham
+slotInfo.TextSize = 10
+slotInfo.TextXAlignment = Enum.TextXAlignment.Left
+
+-- ========== 6. BAGIAN WALKSPEED ==========
+local line = Instance.new("Frame")
+line.Parent = mainFrame
+line.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
+line.BorderSizePixel = 0
+line.Size = UDim2.new(1, -20, 0, 1)
+line.Position = UDim2.new(0, 10, 0, 145)
+
+local wsLabel = Instance.new("TextLabel")
+wsLabel.Parent = mainFrame
+wsLabel.BackgroundTransparency = 1
+wsLabel.Position = UDim2.new(0, 10, 0, 155)
+wsLabel.Size = UDim2.new(0, 100, 0, 20)
+wsLabel.Text = "WalkSpeed"
+wsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+wsLabel.Font = Enum.Font.GothamSemibold
+wsLabel.TextSize = 14
+wsLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local slider = Instance.new("TextBox")
+slider.Parent = mainFrame
+slider.Position = UDim2.new(0, 10, 0, 178)
+slider.Size = UDim2.new(0, 200, 0, 25)
+slider.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+slider.BorderSizePixel = 0
+slider.Text = tostring(DEFAULT_WALKSPEED)
+slider.TextColor3 = Color3.new(1, 1, 1)
+slider.Font = Enum.Font.Gotham
+slider.TextSize = 13
+slider.PlaceholderText = "Speed"
+local sliderCorner = Instance.new("UICorner")
+sliderCorner.CornerRadius = UDim.new(0, 4)
+sliderCorner.Parent = slider
+
+local setSpeedBtn = Instance.new("TextButton")
+setSpeedBtn.Parent = mainFrame
+setSpeedBtn.Size = UDim2.new(0, 60, 0, 25)
+setSpeedBtn.Position = UDim2.new(1, -70, 0, 178)
+setSpeedBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+setSpeedBtn.BorderSizePixel = 0
+setSpeedBtn.Text = "Set"
+setSpeedBtn.TextColor3 = Color3.new(1, 1, 1)
+setSpeedBtn.Font = Enum.Font.GothamBold
+setSpeedBtn.TextSize = 13
+local setCorner = Instance.new("UICorner")
+setCorner.CornerRadius = UDim.new(0, 4)
+setCorner.Parent = setSpeedBtn
+
+local currentSpeedLabel = Instance.new("TextLabel")
+currentSpeedLabel.Parent = mainFrame
+currentSpeedLabel.BackgroundTransparency = 1
+currentSpeedLabel.Position = UDim2.new(0, 10, 0, 208)
+currentSpeedLabel.Size = UDim2.new(1, -20, 0, 15)
+currentSpeedLabel.Text = "Current: " .. DEFAULT_WALKSPEED
+currentSpeedLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+currentSpeedLabel.Font = Enum.Font.Gotham
+currentSpeedLabel.TextSize = 11
+currentSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- ========== 7. FUNGSI WALKSPEED ==========
+local function setWalkSpeed(speed)
+    local character = player.Character
+    if character and character:FindFirstChild("Humanoid") then
+        character.Humanoid.WalkSpeed = speed
+        currentSpeedLabel.Text = "Current: " .. speed
+    end
+end
+
+-- Fungsi untuk mengambil nilai dari slider dan mengaplikasikannya
+local function applySpeedFromInput()
+    local speed = tonumber(slider.Text)
+    if speed then
+        setWalkSpeed(speed)
+    else
+        slider.Text = tostring(DEFAULT_WALKSPEED)
+        setWalkSpeed(DEFAULT_WALKSPEED)
+    end
+end
+
+-- Tombol Set
+setSpeedBtn.MouseButton1Click:Connect(applySpeedFromInput)
+
+-- Enter pada TextBox
+slider.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        applySpeedFromInput()
+    end
+end)
+
+-- SHORTCUT KEYBOARD: Tekan "R" untuk apply speed
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    -- gameProcessed true berarti sedang mengetik di chat atau GUI input, agar tidak mengganggu
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.R then
+        applySpeedFromInput()
+    end
+end)
+
+-- Set default speed saat karakter muncul
+local function onCharacterAdded(character)
+    task.wait(0.2)
+    setWalkSpeed(DEFAULT_WALKSPEED)
+    slider.Text = tostring(DEFAULT_WALKSPEED)
+end
+
+if player.Character then
+    onCharacterAdded(player.Character)
+end
+player.CharacterAdded:Connect(onCharacterAdded)
+
+-- ========== 8. FUNGSI SWITCH EQUIPMENT (TANPA STATUE) ==========
+local function switchSet(slotNumber, isTankerSet)
+    if busy then return end
+    busy = true
+    
+    if isTankerSet then
+        tankerBtn.Text = "Switching..."
+    else
+        dmgBtn.Text = "Switching..."
+    end
+    
+    switchRelicEvent:FireServer(slotNumber, 1)
+    task.wait(0.3)
+    switchRuneEvent:FireServer(slotNumber, 1)
+    task.wait(0.3)
+    switchDecorEvent:FireServer(slotNumber, 1)
+    task.wait(0.3)
+    SwitchSkillEvent:FireServer(slotNumber, 1)
+    task.wait(0.3)
+    
+    expSet = isTankerSet
+    if isTankerSet then
+        tankerBtn.Text = "Tanker Set"
+        dmgBtn.Text = "Damage Set"
+        equipStatus.Text = "Status: Tanker Set (Slot " .. slotNumber .. ")"
+    else
+        tankerBtn.Text = "Tanker Set"
+        dmgBtn.Text = "Damage Set"
+        equipStatus.Text = "Status: Damage Set (Slot " .. slotNumber .. ")"
+    end
+    busy = false
+end
+
+tankerBtn.MouseButton1Click:Connect(function()
+    if not busy and not expSet then
+        switchSet(TANKER_SLOT, true)
+    end
+end)
+
+dmgBtn.MouseButton1Click:Connect(function()
+    if not busy and expSet then
+        switchSet(DAMAGE_SLOT, false)
+    end
+end)
+
+expSet = true
+equipStatus.Text = "Status: Tanker Set (Slot " .. TANKER_SLOT .. ")"
+
+-- ========== 9. EFEK HOVER ==========
+local function addHoverEffect(btn, hoverColor, normalColor)
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = hoverColor
+    end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = normalColor
+    end)
+end
+
+addHoverEffect(tankerBtn, Color3.fromRGB(80, 80, 100), Color3.fromRGB(60, 60, 70))
+addHoverEffect(dmgBtn, Color3.fromRGB(80, 80, 100), Color3.fromRGB(60, 60, 70))
+addHoverEffect(setSpeedBtn, Color3.fromRGB(90, 150, 200), Color3.fromRGB(70, 130, 180))
+addHoverEffect(closeBtn, Color3.fromRGB(220, 70, 70), Color3.fromRGB(200, 60, 60))
+
+print("Auto Tool loaded. Tekan 'R' untuk set walkspeed. Tanker Slot = " .. TANKER_SLOT .. ", Damage Slot = " .. DAMAGE_SLOT)
