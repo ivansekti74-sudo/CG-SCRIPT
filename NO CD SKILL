@@ -1,0 +1,278 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local player = Players.LocalPlayer
+
+local skillLoopEnabled = false
+local tpLoopEnabled = false
+
+local SKILL_DELAY = 1.25
+local SKILL_ACTIVE_DURATION = 5
+local TP_DELAY = 0.3
+local DETECT_RADIUS = 100
+
+local MOVE_THRESHOLD = 2.5
+local RETURN_THRESHOLD = 6
+local FORCE_RETURN_DISTANCE = 150
+
+-- Default skill ID
+local skillId = "9"
+
+-- Slot → keyboard mapping
+local SLOT_KEY_MAP = {
+    [1] = Enum.KeyCode.Two,
+    [2] = Enum.KeyCode.Three,
+    [3] = Enum.KeyCode.Four,
+}
+
+-- Anti‑afk
+task.spawn(function()
+    player.Idled:Connect(function()
+        VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        task.wait(0.1)
+        VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    end)
+end)
+
+-- Remote events
+local EventFolder = ReplicatedStorage
+    :WaitForChild("\228\186\139\228\187\182")
+    :WaitForChild("\229\133\172\231\148\168")
+local SkillFolder = EventFolder:WaitForChild("\230\138\128\232\131\189")
+local BattleFolder = EventFolder:WaitForChild("\230\136\152\230\150\151")
+
+local EquipSkillRemote = SkillFolder:WaitForChild("\232\163\133\229\164\135\230\138\128\232\131\189")
+local ResetSlotRemote = SkillFolder:WaitForChild("\228\184\128\233\148\174\232\163\133\229\164\135")
+local DetectEnemyRemote = BattleFolder:WaitForChild("\230\155\180\230\148\185\231\155\174\230\160\135")
+
+local function pressKey(keyCode)
+    VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
+    task.wait(0.1)
+    VirtualInputManager:SendKeyEvent(false, keyCode, false, game)
+end
+
+-- ========== SKILL LOOP ==========
+local function skillLoop()
+    task.spawn(function()
+        local slot = 1
+        while skillLoopEnabled do
+            local char = player.Character or player.CharacterAdded:Wait()
+            local hrp = char:WaitForChild("HumanoidRootPart")
+
+            -- Reset semua slot
+            ResetSlotRemote:FireServer()
+            task.wait(SKILL_DELAY)
+
+            -- Equip skill ID yang sedang aktif (dari TextBox)
+            EquipSkillRemote:FireServer(skillId, slot)
+            task.wait(0.5)
+
+            -- Gunakan skill
+            pressKey(SLOT_KEY_MAP[slot])
+            task.wait(SKILL_ACTIVE_DURATION)
+
+            slot += 1
+            if slot > 3 then slot = 1 end
+        end
+    end)
+end
+
+-- ========== TP ENEMY LOOP ==========
+local function tpEnemyLoop()
+    task.spawn(function()
+        local lockedPosition = nil
+        local locked = false
+        local lastTPPosition = nil
+
+        local function median(t)
+            table.sort(t)
+            local n = #t
+            if n == 0 then return nil end
+            if n % 2 == 1 then
+                return t[math.ceil(n / 2)]
+            else
+                return (t[n/2] + t[n/2 + 1]) / 2
+            end
+        end
+
+        while tpLoopEnabled do
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+            if hrp then
+                if not locked then
+                    local enemyFolder = workspace:WaitForChild("\229\141\149\228\189\141\229\175\185\232\177\161")
+                    local monsters = {}
+                    local xs, zs = {}, {}
+
+                    for _, enemy in ipairs(enemyFolder:GetChildren()) do
+                        local eHRP = enemy:FindFirstChild("HumanoidRootPart")
+                        local hum = enemy:FindFirstChildOfClass("Humanoid")
+                        if eHRP and hum and hum.Health > 0 then
+                            local dist = (hrp.Position - eHRP.Position).Magnitude
+                            if dist <= DETECT_RADIUS then
+                                table.insert(monsters, enemy)
+                                table.insert(xs, eHRP.Position.X)
+                                table.insert(zs, eHRP.Position.Z)
+                            end
+                        end
+                    end
+
+                    if #monsters > 0 then
+                        local midX = median(xs)
+                        local midZ = median(zs)
+                        local pick, minDist = nil, math.huge
+                        for _, enemy in ipairs(monsters) do
+                            local pos = enemy.HumanoidRootPart.Position
+                            local d = (Vector3.new(midX, pos.Y, midZ) - pos).Magnitude
+                            if d < minDist then
+                                minDist = d
+                                pick = enemy
+                            end
+                        end
+                        if pick then
+                            lockedPosition = pick.HumanoidRootPart.Position
+                            lastTPPosition = nil
+                            DetectEnemyRemote:FireServer(pick)
+                            locked = true
+                        end
+                    end
+                end
+
+                if lockedPosition then
+                    local targetPos = lockedPosition + Vector3.new(0, 0, -3)
+                    local playerDist = (hrp.Position - targetPos).Magnitude
+                    if playerDist >= FORCE_RETURN_DISTANCE or playerDist >= RETURN_THRESHOLD or (lastTPPosition and (targetPos - lastTPPosition).Magnitude >= MOVE_THRESHOLD) then
+                        hrp.CFrame = CFrame.new(targetPos)
+                        lastTPPosition = targetPos
+                    elseif not lastTPPosition then
+                        hrp.CFrame = CFrame.new(targetPos)
+                        lastTPPosition = targetPos
+                    end
+                end
+            end
+            task.wait(TP_DELAY)
+        end
+        locked = false
+        lockedPosition = nil
+        lastTPPosition = nil
+    end)
+end
+
+-- ========== GUI ==========
+local playerGui = player:WaitForChild("PlayerGui")
+if playerGui:FindFirstChild("AutoSkillUI") then
+    playerGui.AutoSkillUI:Destroy()
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "AutoSkillUI"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = playerGui
+
+-- Frame diperlebar tingginya untuk menampung TextBox
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 260, 0, 160)
+mainFrame.Position = UDim2.new(0.5, -130, 0.5, -80)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.BackgroundTransparency = 0.1
+mainFrame.Active = true
+mainFrame.Draggable = false
+mainFrame.Parent = gui
+
+local titleBar = Instance.new("TextLabel")
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+titleBar.BorderSizePixel = 0
+titleBar.Text = "🤖 Auto Skill & TP (Drag me)"
+titleBar.TextColor3 = Color3.new(1, 1, 1)
+titleBar.Font = Enum.Font.GothamBold
+titleBar.TextSize = 14
+titleBar.TextXAlignment = Enum.TextXAlignment.Center
+titleBar.Parent = mainFrame
+
+-- TextBox untuk skill ID
+local skillIdBox = Instance.new("TextBox")
+skillIdBox.Size = UDim2.new(0, 230, 0, 28)
+skillIdBox.Position = UDim2.new(0, 15, 0, 35)
+skillIdBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+skillIdBox.TextColor3 = Color3.new(1, 1, 1)
+skillIdBox.Font = Enum.Font.Gotham
+skillIdBox.TextSize = 14
+skillIdBox.PlaceholderText = "Skill ID (default 9)"
+skillIdBox.Text = "9"
+skillIdBox.BorderSizePixel = 0
+skillIdBox.Parent = mainFrame
+
+-- Update skillId saat teks berubah
+skillIdBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if #skillIdBox.Text > 0 then
+        skillId = skillIdBox.Text
+    else
+        skillId = "9"   -- fallback
+    end
+end)
+
+-- Drag tetap pakai titleBar
+local dragging = false
+local dragStartPos = nil
+local frameStartPos = nil
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStartPos = input.Position
+        frameStartPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStartPos
+        local newX = frameStartPos.X.Offset + delta.X
+        local newY = frameStartPos.Y.Offset + delta.Y
+        mainFrame.Position = UDim2.new(frameStartPos.X.Scale, newX, frameStartPos.Y.Scale, newY)
+    end
+end)
+
+-- Fungsi tombol
+local function createButton(text, yPos)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 230, 0, 34)
+    btn.Position = UDim2.new(0, 15, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.BorderSizePixel = 0
+    btn.Text = text
+    btn.AutoButtonColor = true
+    btn.Parent = mainFrame
+    return btn
+end
+
+local skillBtn = createButton("Skill Loop : OFF", 70)
+local tpBtn = createButton("Auto TP (Smart) : OFF", 110)
+
+skillBtn.MouseButton1Click:Connect(function()
+    skillLoopEnabled = not skillLoopEnabled
+    skillBtn.Text = "Skill Loop : " .. (skillLoopEnabled and "ON" or "OFF")
+    if skillLoopEnabled then skillLoop() end
+end)
+
+tpBtn.MouseButton1Click:Connect(function()
+    tpLoopEnabled = not tpLoopEnabled
+    tpBtn.Text = "Auto TP (Smart) : " .. (tpLoopEnabled and "ON" or "OFF")
+    if tpLoopEnabled then tpEnemyLoop() end
+end)
