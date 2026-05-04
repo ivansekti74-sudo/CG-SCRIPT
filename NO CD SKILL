@@ -8,8 +8,8 @@ local player = Players.LocalPlayer
 local skillLoopEnabled = false
 local tpLoopEnabled = false
 
-local SKILL_DELAY = 1.25
-local SKILL_ACTIVE_DURATION = 4
+local SKILL_DELAY = 1.5
+local SKILL_ACTIVE_DURATION = 5
 local TP_DELAY = 0.3
 local DETECT_RADIUS = 100
 
